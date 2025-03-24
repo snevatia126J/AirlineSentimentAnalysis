@@ -19,7 +19,6 @@ server <- function(input, output, session) {
     df <- read_csv(input$file1$datapath)
     df <- df %>% filter(!is.na(text))
 
-    # Correct escape sequence for regex in R
     df$airline <- stringr::str_extract(df$text, "@\\w+")
     df$airline <- gsub("@", "", df$airline)
     df$airline <- tolower(df$airline)
@@ -33,12 +32,11 @@ server <- function(input, output, session) {
     df <- df %>% filter(airline %in% input$airlines)
     df$text <- tolower(df$text)
 
-    # Clean tweet text
-    df$text <- gsub("http\\S+|https\\S+", "", df$text)  # remove URLs
-    df$text <- gsub("@\\w+", "", df$text)               # remove mentions
-    df$text <- gsub("#", "", df$text)                   # remove hashtags
-    df$text <- gsub("[^a-z\\s]", "", df$text)           # keep only letters and spaces
-    df$text <- gsub("\\s+", " ", df$text)               # normalize whitespace
+    df$text <- gsub("http\\S+|https\\S+", "", df$text)
+    df$text <- gsub("@\\w+", "", df$text)
+    df$text <- gsub("#", "", df$text)
+    df$text <- gsub("[^a-z\\s]", "", df$text)
+    df$text <- gsub("\\s+", " ", df$text)
 
     tidy_df <- df %>%
       unnest_tokens(word, text, token = "words") %>%
@@ -75,12 +73,21 @@ server <- function(input, output, session) {
 
   output$wordcloudPlot <- renderPlot({
     tidy_df <- cleanTokens()
-    words <- tidy_df %>% count(word, sort = TRUE)
-    wordcloud(words = words$word,
-              freq = words$n,
-              max.words = 100,
-              colors = brewer.pal(8, "Dark2"),
-              scale = c(4, 0.8),
-              random.order = FALSE)
+    words <- tidy_df %>%
+      count(word, sort = TRUE) %>%
+      filter(!is.na(n) & n > 1)
+
+    if (nrow(words) == 0) {
+      plot.new()
+      text(0.5, 0.5, "No words to display", cex = 1.5)
+    } else {
+      wordcloud(words = words$word,
+                freq = words$n,
+                max.words = 100,
+                min.freq = 2,
+                colors = brewer.pal(8, "Dark2"),
+                scale = c(4, 0.8),
+                random.order = FALSE)
+    }
   })
 }
