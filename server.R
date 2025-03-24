@@ -1,100 +1,57 @@
-library(shiny)
-library(tidytext)
-library(dplyr)
-library(ggplot2)
-library(wordcloud)
-library(RColorBrewer)
-library(readr)
-library(stringr)
-library(tidyr)
+# server.R
+source("global.R")
 
 server <- function(input, output, session) {
-
-  dataInput <- reactive({
+  
+  raw_data <- reactive({
     req(input$file1)
-    df <- read_csv(input$file1$datapath, col_types = cols(text = col_character()))
+    df <- read_csv(input$file1$datapath)
     df <- df %>% filter(!is.na(text))
-
-    df$airline <- stringr::str_extract(df$text, "@\\w+")
-    df$airline <- gsub("@", "", df$airline)
-    df$airline <- tolower(df$airline)
-
+    df$airline <- str_extract(df$text, "@\\w+") %>% str_remove("@") %>% tolower()
     updateCheckboxGroupInput(session, "airlines", choices = unique(df$airline), selected = unique(df$airline))
-    return(df)
+    df
   })
-
-  cleanTokens <- reactive({
-    df <- dataInput()
+  
+  tidy_tokens <- reactive({
+    df <- raw_data()
     df <- df %>% filter(airline %in% input$airlines)
-    df$text <- tolower(df$text)
-
-    df$text <- gsub("http\\S+|https\\S+", "", df$text)
-    df$text <- gsub("@\\w+", "", df$text)
-    df$text <- gsub("#", "", df$text)
-    df$text <- gsub("[^a-z\\s']", "", df$text)
-    df$text <- gsub("\\s+", " ", df$text)
-
+    df$text <- clean_text(df$text)
+    
     tidy_df <- df %>%
-      unnest_tokens(word, text, token = "words") %>%
+      unnest_tokens(word, text) %>%
       filter(nchar(word) > 2) %>%
       anti_join(stop_words, by = "word")
-
+    
     tidy_df
   })
-
-  sentimentResults <- reactive({
+  
+  sentiment_data <- reactive({
     lexicon <- input$sentiment
-    tidy_df <- cleanTokens()
+    tidy_df <- tidy_tokens()
     sentiments <- get_sentiments(lexicon)
-
-    sentiment_df <- tidy_df %>%
+    
+    tidy_df %>%
       inner_join(sentiments, by = "word") %>%
       count(airline, sentiment, sort = TRUE)
-
-    sentiment_df
   })
 
   output$summaryTable <- renderTable({
-    sentiment_df <- sentimentResults()
-    sentiment_df %>% pivot_wider(names_from = sentiment, values_from = n, values_fill = 0)
+    sentiment_data() %>%
+      pivot_wider(names_from = sentiment, values_from = n, values_fill = 0)
   })
-
+  
   output$barPlot <- renderPlot({
-    sentiment_df <- sentimentResults()
-    ggplot(sentiment_df, aes(x = airline, y = n, fill = sentiment)) +
+    df <- sentiment_data()
+    ggplot(df, aes(x = airline, y = n, fill = sentiment)) +
       geom_bar(stat = "identity", position = "dodge") +
-      theme_minimal() +
-      labs(title = "Sentiment Count by Airline", y = "Count", x = "Airline")
+      labs(title = "Sentiment by Airline", x = "Airline", y = "Count") +
+      theme_minimal()
   })
-
+  
   output$wordcloudPlot <- renderPlot({
-    tidy_df <- cleanTokens()
-    words <- tidy_df %>%
-      inner_join(get_sentiments("bing"), by = "word") %>%
-      count(word, sentiment, sort = TRUE) %>%
-      pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
-      mutate(sentiment_score = positive - negative)
-
-    # Debugging: check if there are words and sentiment scores
-    print(head(words)) # Print the first few rows of the words data frame
-
-    if (nrow(words) == 0 || all(is.na(words$sentiment_score))) {
-      plot.new()
-      text(0.5, 0.5, "No meaningful words to display", cex = 1.5)
-    } else {
-      # Filter out rows with NA sentiment scores
-      words <- words %>% filter(!is.na(sentiment_score))
-      if (nrow(words) > 0) {
-        wordcloud(words = words$word,
-                  freq = words$sentiment_score,
-                  max.words = 100,
-                  colors = brewer.pal(8, "Dark2"),
-                  scale = c(4, 0.8),
-                  random.order = FALSE)
-      } else {
-        plot.new()
-        text(0.5, 0.5, "No words with sentiment scores to display", cex = 1.5)
-      }
-    }
+    tidy_df <- tidy_tokens()
+    wc_data <- tidy_df %>% count(word, sort = TRUE)
+    wordcloud(words = wc_data$word, freq = wc_data$n, max.words = 100,
+              scale = c(3.5, 0.7), colors = brewer.pal(8, "Dark2"))
   })
 }
