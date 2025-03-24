@@ -1,14 +1,18 @@
-
 # dependencies.R
 
-packages <- c("shiny", "tidytext", "dplyr", "ggplot2", "wordcloud", "tm",
-              "SnowballC", "readr", "shinydashboard", "stringr", "tidyr")
+# List of required packages
+required_packages <- c("shiny", "tidyverse", "tidytext", "sentimentr", "DT", "plotly")
 
-install_if_missing <- function(pkg) {
-  if (!require(pkg, character.only = TRUE)) {
-    install.packages(pkg, dependencies = TRUE)
-    library(pkg, character.only = TRUE)
+# Function to check and install missing packages
+install_missing_packages <- function(packages) {
+  missing_packages <- setdiff(packages, rownames(installed.packages()))
+  if (length(missing_packages) > 0) {
+    install.packages(missing_packages)
   }
 }
 
-invisible(sapply(packages, install_if_missing))
+# Install missing packages
+install_missing_packages(required_packages)
+
+# Load required packages
+lapply(required_packages, require, character.only = TRUE)
