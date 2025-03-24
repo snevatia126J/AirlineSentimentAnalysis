@@ -19,8 +19,8 @@ server <- function(input, output, session) {
     df <- read_csv(input$file1$datapath)
     df <- df %>% filter(!is.na(text))
 
-    # Properly escaped backslash for regex
-    df$airline <- stringr::str_extract(df$text, "@\\\w+")
+    # Correct escape sequence for regex in R
+    df$airline <- stringr::str_extract(df$text, "@\\w+")
     df$airline <- gsub("@", "", df$airline)
     df$airline <- tolower(df$airline)
 
@@ -33,12 +33,12 @@ server <- function(input, output, session) {
     df <- df %>% filter(airline %in% input$airlines)
     df$text <- tolower(df$text)
 
-    # Fix all escaping issues
-    df$text <- gsub("http\S+|https\S+", "", df$text)
-    df$text <- gsub("@\w+", "", df$text)
-    df$text <- gsub("#", "", df$text)
-    df$text <- gsub("[^a-z\s]", "", df$text)
-    df$text <- gsub("\s+", " ", df$text)
+    # Clean tweet text
+    df$text <- gsub("http\\S+|https\\S+", "", df$text)  # remove URLs
+    df$text <- gsub("@\\w+", "", df$text)               # remove mentions
+    df$text <- gsub("#", "", df$text)                   # remove hashtags
+    df$text <- gsub("[^a-z\\s]", "", df$text)           # keep only letters and spaces
+    df$text <- gsub("\\s+", " ", df$text)               # normalize whitespace
 
     tidy_df <- df %>%
       unnest_tokens(word, text, token = "words") %>%
