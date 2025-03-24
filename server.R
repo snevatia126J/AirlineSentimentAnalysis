@@ -1,13 +1,9 @@
-
-# server.R
-
 library(shiny)
 library(tidytext)
 library(dplyr)
 library(ggplot2)
 library(wordcloud)
-library(tm)
-library(SnowballC)
+library(RColorBrewer)
 library(readr)
 library(stringr)
 library(tidyr)
@@ -32,15 +28,16 @@ server <- function(input, output, session) {
     df <- df %>% filter(airline %in% input$airlines)
     df$text <- tolower(df$text)
 
+    # Less aggressive cleaning: keep more words
     df$text <- gsub("http\\S+|https\\S+", "", df$text)
     df$text <- gsub("@\\w+", "", df$text)
     df$text <- gsub("#", "", df$text)
-    df$text <- gsub("[^a-z\\s]", "", df$text)
+    df$text <- gsub("[^a-z\\s']", "", df$text) #Keep apostrophes to keep words like "can't"
     df$text <- gsub("\\s+", " ", df$text)
 
     tidy_df <- df %>%
       unnest_tokens(word, text, token = "words") %>%
-      filter(nchar(word) > 2 & nchar(word) < 15) %>%
+      filter(nchar(word) > 2) %>% # Keep words longer than 2 characters
       anti_join(stop_words, by = "word")
 
     tidy_df
@@ -74,17 +71,20 @@ server <- function(input, output, session) {
   output$wordcloudPlot <- renderPlot({
     tidy_df <- cleanTokens()
     words <- tidy_df %>%
-      count(word, sort = TRUE) %>%
-      filter(!is.na(n) & n > 1)
+      inner_join(get_sentiments("bing"), by = "word") %>% #Join with bing sentiment to get sentiment values.
+      count(word, sentiment, sort = TRUE) %>%
+      pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
+      mutate(sentiment_score = positive - negative) %>%
+      arrange(desc(abs(sentiment_score))) %>%
+      top_n(100, abs(sentiment_score))
 
     if (nrow(words) == 0) {
       plot.new()
       text(0.5, 0.5, "No words to display", cex = 1.5)
     } else {
       wordcloud(words = words$word,
-                freq = words$n,
+                freq = words$sentiment_score, #Use sentiment score as frequency
                 max.words = 100,
-                min.freq = 2,
                 colors = brewer.pal(8, "Dark2"),
                 scale = c(4, 0.8),
                 random.order = FALSE)
