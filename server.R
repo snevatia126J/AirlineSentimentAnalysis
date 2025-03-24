@@ -20,7 +20,7 @@ server <- function(input, output, session) {
     df <- df %>% filter(!is.na(text))
 
     # Extract airline name from handle (e.g., @JetBlue)
-    df$airline <- stringr::str_extract(df$text, "@\\w+")
+    df$airline <- stringr::str_extract(df$text, "@\w+")
     df$airline <- gsub("@", "", df$airline)
     df$airline <- tolower(df$airline)
 
@@ -32,11 +32,17 @@ server <- function(input, output, session) {
     df <- dataInput()
     df <- df %>% filter(airline %in% input$airlines)
     df$text <- tolower(df$text)
-    df$text <- gsub("http\\S+", "", df$text)
-    df$text <- gsub("[^a-zA-Z\\s]", "", df$text)
+
+    # Clean text more thoroughly
+    df$text <- gsub("http\S+|https\S+", "", df$text)     # remove URLs
+    df$text <- gsub("@\w+", "", df$text)                  # remove mentions
+    df$text <- gsub("#", "", df$text)                      # remove hashtags
+    df$text <- gsub("[^a-z\s]", "", df$text)              # keep only letters
+    df$text <- gsub("\s+", " ", df$text)                  # normalize spaces
 
     tidy_df <- df %>%
-      unnest_tokens(word, text) %>%
+      unnest_tokens(word, text, token = "words") %>%
+      filter(nchar(word) > 2 & nchar(word) < 15) %>%
       anti_join(stop_words, by = "word")
 
     tidy_df
@@ -70,6 +76,11 @@ server <- function(input, output, session) {
   output$wordcloudPlot <- renderPlot({
     tidy_df <- cleanTokens()
     words <- tidy_df %>% count(word, sort = TRUE)
-    wordcloud(words = words$word, freq = words$n, max.words = 100, colors = brewer.pal(8, "Dark2"))
+    wordcloud(words = words$word,
+              freq = words$n,
+              max.words = 100,
+              colors = brewer.pal(8, "Dark2"),
+              scale = c(4, 0.8),
+              random.order = FALSE)
   })
 }
