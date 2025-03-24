@@ -1,26 +1,23 @@
-
 # ui.R
 
 library(shiny)
-library(shinydashboard)
+library(DT)
+library(plotly)
 
-ui <- dashboardPage(
-  dashboardHeader(title = "Airline Sentiment Analysis"),
-  dashboardSidebar(
-    fileInput("file1", "Upload CSV File", accept = ".csv"),
-    selectInput("sentiment", "Choose Sentiment Lexicon:",
-                choices = c("bing", "afinn", "nrc"), selected = "bing"),
-    checkboxGroupInput("airlines", "Select Airlines to Compare:", choices = NULL)
-  ),
-  dashboardBody(
-    fluidRow(
-      box(title = "Sentiment Summary", width = 12, solidHeader = TRUE, status = "primary",
-          tableOutput("summaryTable")
-      )
+ui <- fluidPage(
+  titlePanel("Airline Tweet Sentiment Analysis"),
+  sidebarLayout(
+    sidebarPanel(
+      fileInput("file", "Upload CSV File (airline_tweets_sample 1k.csv)", accept = c(".csv")),
+      selectInput("airline", "Select Airline (Optional)", choices = c("All", "US Airways", "United", "American", "Southwest", "Delta", "Virgin America")),
+      actionButton("analyze", "Analyze Sentiment")
     ),
-    fluidRow(
-      box(title = "Sentiment Distribution", width = 6, plotOutput("barPlot")),
-      box(title = "Word Cloud", width = 6, plotOutput("wordcloudPlot"))
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Raw Data", DT::dataTableOutput("raw_data")),
+        tabPanel("Sentiment Summary", DT::dataTableOutput("sentiment_summary")),
+        tabPanel("Sentiment Plot", plotlyOutput("sentiment_plot"))
+      )
     )
   )
 )
