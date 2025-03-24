@@ -12,6 +12,7 @@ server <- function(input, output) {
   data <- reactive({
     req(input$file)
     df <- read.csv(input$file$datapath)
+    df <- as.data.frame(lapply(df, as.character)) # Convert all columns to character
     df
   })
 
@@ -25,16 +26,24 @@ server <- function(input, output) {
 
   sentiment_data <- eventReactive(input$analyze, {
     df <- filtered_data()
-    df %>%
-      mutate(sentiment = sentiment_by(text)$ave_sentiment) %>%
-      group_by(airline) %>%
-      summarise(average_sentiment = mean(sentiment, na.rm = TRUE))
+    if(nrow(df) > 0){ #Check if there is data to analyze
+      df %>%
+        mutate(sentiment = sentiment_by(text)$ave_sentiment) %>%
+        group_by(airline) %>%
+        summarise(average_sentiment = mean(sentiment, na.rm = TRUE))
+    } else {
+      data.frame(airline = character(), average_sentiment = numeric()) #Return an empty data frame if no data
+    }
   })
 
   sentiment_plot_data <- eventReactive(input$analyze, {
     df <- filtered_data()
-    df %>%
-      mutate(sentiment = sentiment_by(text)$ave_sentiment)
+    if(nrow(df) > 0){
+      df %>%
+        mutate(sentiment = sentiment_by(text)$ave_sentiment)
+    } else {
+      data.frame(airline = character(), sentiment = numeric()) #Return an empty data frame if no data
+    }
   })
 
   output$raw_data <- DT::renderDataTable({
@@ -47,8 +56,11 @@ server <- function(input, output) {
 
   output$sentiment_plot <- renderPlotly({
     plot_data <- sentiment_plot_data()
-
-    plot_ly(plot_data, x = ~airline, y = ~sentiment, type = 'box', color = ~airline) %>%
-      layout(title = "Sentiment Distribution by Airline")
+    if(nrow(plot_data) > 0){
+      plot_ly(plot_data, x = ~airline, y = ~sentiment, type = 'box', color = ~airline) %>%
+        layout(title = "Sentiment Distribution by Airline")
+    } else {
+      plotly_empty() #Return an empty plotly plot if no data
+    }
   })
 }
