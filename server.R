@@ -12,7 +12,7 @@ server <- function(input, output, session) {
 
   dataInput <- reactive({
     req(input$file1)
-    df <- read_csv(input$file1$datapath, col_types = cols(text = col_character())) #Force text col to be character
+    df <- read_csv(input$file1$datapath, col_types = cols(text = col_character()))
     df <- df %>% filter(!is.na(text))
 
     df$airline <- stringr::str_extract(df$text, "@\\w+")
@@ -73,20 +73,28 @@ server <- function(input, output, session) {
       inner_join(get_sentiments("bing"), by = "word") %>%
       count(word, sentiment, sort = TRUE) %>%
       pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
-      mutate(sentiment_score = positive - negative) %>%
-      arrange(desc(abs(sentiment_score))) %>%
-      top_n(100, abs(sentiment_score))
+      mutate(sentiment_score = positive - negative)
 
-    if (nrow(words) == 0 || all(is.na(words$sentiment_score))) { #Added check for all NA's
+    # Debugging: check if there are words and sentiment scores
+    print(head(words)) # Print the first few rows of the words data frame
+
+    if (nrow(words) == 0 || all(is.na(words$sentiment_score))) {
       plot.new()
       text(0.5, 0.5, "No meaningful words to display", cex = 1.5)
     } else {
-      wordcloud(words = words$word,
-                freq = words$sentiment_score,
-                max.words = 100,
-                colors = brewer.pal(8, "Dark2"),
-                scale = c(4, 0.8),
-                random.order = FALSE)
+      # Filter out rows with NA sentiment scores
+      words <- words %>% filter(!is.na(sentiment_score))
+      if (nrow(words) > 0) {
+        wordcloud(words = words$word,
+                  freq = words$sentiment_score,
+                  max.words = 100,
+                  colors = brewer.pal(8, "Dark2"),
+                  scale = c(4, 0.8),
+                  random.order = FALSE)
+      } else {
+        plot.new()
+        text(0.5, 0.5, "No words with sentiment scores to display", cex = 1.5)
+      }
     }
   })
 }
