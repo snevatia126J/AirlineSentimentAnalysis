@@ -12,7 +12,7 @@ server <- function(input, output, session) {
 
   dataInput <- reactive({
     req(input$file1)
-    df <- read_csv(input$file1$datapath)
+    df <- read_csv(input$file1$datapath, col_types = cols(text = col_character())) #Force text col to be character
     df <- df %>% filter(!is.na(text))
 
     df$airline <- stringr::str_extract(df$text, "@\\w+")
@@ -28,16 +28,15 @@ server <- function(input, output, session) {
     df <- df %>% filter(airline %in% input$airlines)
     df$text <- tolower(df$text)
 
-    # Less aggressive cleaning: keep more words
     df$text <- gsub("http\\S+|https\\S+", "", df$text)
     df$text <- gsub("@\\w+", "", df$text)
     df$text <- gsub("#", "", df$text)
-    df$text <- gsub("[^a-z\\s']", "", df$text) #Keep apostrophes to keep words like "can't"
+    df$text <- gsub("[^a-z\\s']", "", df$text)
     df$text <- gsub("\\s+", " ", df$text)
 
     tidy_df <- df %>%
       unnest_tokens(word, text, token = "words") %>%
-      filter(nchar(word) > 2) %>% # Keep words longer than 2 characters
+      filter(nchar(word) > 2) %>%
       anti_join(stop_words, by = "word")
 
     tidy_df
@@ -71,19 +70,19 @@ server <- function(input, output, session) {
   output$wordcloudPlot <- renderPlot({
     tidy_df <- cleanTokens()
     words <- tidy_df %>%
-      inner_join(get_sentiments("bing"), by = "word") %>% #Join with bing sentiment to get sentiment values.
+      inner_join(get_sentiments("bing"), by = "word") %>%
       count(word, sentiment, sort = TRUE) %>%
       pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
       mutate(sentiment_score = positive - negative) %>%
       arrange(desc(abs(sentiment_score))) %>%
       top_n(100, abs(sentiment_score))
 
-    if (nrow(words) == 0) {
+    if (nrow(words) == 0 || all(is.na(words$sentiment_score))) { #Added check for all NA's
       plot.new()
-      text(0.5, 0.5, "No words to display", cex = 1.5)
+      text(0.5, 0.5, "No meaningful words to display", cex = 1.5)
     } else {
       wordcloud(words = words$word,
-                freq = words$sentiment_score, #Use sentiment score as frequency
+                freq = words$sentiment_score,
                 max.words = 100,
                 colors = brewer.pal(8, "Dark2"),
                 scale = c(4, 0.8),
