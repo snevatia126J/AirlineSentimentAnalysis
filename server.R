@@ -16,33 +16,24 @@ server <- function(input, output) {
     df
   })
 
-  filtered_data <- reactive({
-    df <- data()
-    if (input$airline != "All") {
-      df <- df %>% filter(airline == input$airline)
-    }
-    df
-  })
-
   sentiment_data <- eventReactive(input$analyze, {
-    df <- filtered_data()
-    if(nrow(df) > 0){ #Check if there is data to analyze
+    df <- data()
+    if (nrow(df) > 0) {
       df %>%
         mutate(sentiment = sentiment_by(text)$ave_sentiment) %>%
-        group_by(airline) %>%
         summarise(average_sentiment = mean(sentiment, na.rm = TRUE))
     } else {
-      data.frame(airline = character(), average_sentiment = numeric()) #Return an empty data frame if no data
+      data.frame(average_sentiment = numeric())
     }
   })
 
   sentiment_plot_data <- eventReactive(input$analyze, {
-    df <- filtered_data()
-    if(nrow(df) > 0){
+    df <- data()
+    if (nrow(df) > 0) {
       df %>%
         mutate(sentiment = sentiment_by(text)$ave_sentiment)
     } else {
-      data.frame(airline = character(), sentiment = numeric()) #Return an empty data frame if no data
+      data.frame(sentiment = numeric())
     }
   })
 
@@ -56,11 +47,11 @@ server <- function(input, output) {
 
   output$sentiment_plot <- renderPlotly({
     plot_data <- sentiment_plot_data()
-    if(nrow(plot_data) > 0){
-      plot_ly(plot_data, x = ~airline, y = ~sentiment, type = 'box', color = ~airline) %>%
-        layout(title = "Sentiment Distribution by Airline")
+    if (nrow(plot_data) > 0) {
+      plot_ly(plot_data, y = ~sentiment, type = "box") %>%
+        layout(title = "Sentiment Distribution")
     } else {
-      plotly_empty() #Return an empty plotly plot if no data
+      plotly_empty()
     }
   })
 }
